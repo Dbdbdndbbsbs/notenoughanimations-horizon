@@ -1,4 +1,4 @@
-﻿{
+{
     "horizon_revision":  "66f3981f522b24c250b21523a70080965b940424",
     "source_sha256":  {
                           "crates/horizon-client/src/mobs.rs":  "8b870fabf68063eacaa1dda511d3d8fe612064022b6a37a706302827f324ffe7",
