@@ -1,6 +1,6 @@
 ﻿[mod]
 id = "notenoughanimations"
-version = "0.2.70"
+version = "0.2.71"
 priority = 100
 
 # The commit it was tested on (the pin the launcher asks for).
@@ -8,8 +8,7 @@ priority = 100
 horizon_revision = "66f3981f522b24c250b21523a70080965b940424"
 
 # The settings are the mod's own page; the animations live in a module
-# inserted into the model-animation file, applied after the vanilla setup
-# (the same places the original mixes into).
+# inserted into the client's ambient file, applied after the vanilla setup.
 [[module]]
 id = "runtime"
 file = "crates/horizon-client/src/game/client_ambient.rs"
@@ -27,6 +26,7 @@ id = "anim"
 file = "crates/horizon-client/src/mobs/anim.rs"
 name = "native_nea_anim"
 source = "nea_anim.rs"
+visibility = "pub"
 
 [[injection]]
 id = "list"
@@ -70,12 +70,20 @@ bindings = [
 ]
 
 [[injection]]
-id = "setup-return"
-kind = "RETURN"
+id = "setup-head"
+kind = "HEAD"
 target = "horizon_client::mobs::anim::setup"
-helper = "nea_setup_return.rs"
+helper = "nea_setup_head.rs"
 bindings = [
   { name = "m", ty = "&crate::mobs::Mob", value = "m" },
   { name = "s", ty = "&crate::mobs::anim::State", value = "s" },
+]
+
+[[injection]]
+id = "visibility-head"
+kind = "HEAD"
+target = "horizon_client::mobs::anim::player_model_visibility"
+helper = "nea_visibility_head.rs"
+bindings = [
   { name = "p", ty = "&mut crate::mobs::anim::Poses", value = "p" },
 ]

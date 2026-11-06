@@ -19,6 +19,14 @@ fn notenoughanimations_frame(game: &mut crate::game::Game<'_>) {
     });
 
     // NEA FreezingAnimation: the local player stands in powder snow (the
-    // game already tracks it on `PlayerMotion`).
-    anim::set_powder_snow(game.player.as_ref().is_some_and(|p| p.in_powder_snow));
+    // game already tracks it on `PlayerMotion`). BurningAnimation reads the
+    // local player's remaining fire ticks, since the model's own field is
+    // only synced for remote players.
+    let Some(p) = game.player.as_ref() else {
+        anim::set_powder_snow(false);
+        anim::set_fire_ticks(0);
+        return;
+    };
+    anim::set_powder_snow(p.in_powder_snow);
+    anim::set_fire_ticks(p.fire_ticks);
 }
