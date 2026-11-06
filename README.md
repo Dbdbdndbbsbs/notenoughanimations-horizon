@@ -24,10 +24,10 @@ pt, ru, sv, tr, uk, zh).
 
 ## Install from GitHub
 
-In the Horizon launcher:
+In the Horizon launcher (read the source first — native mods run with your rights):
 
 ```
-horizon-launcher mods add-github https://github.com/Dbdbdndbbsbs/notenoughanimations-horizon
+horizon-launcher mods add-github https://github.com/Dbdbdndbbsbs/notenoughanimations-horizon --trust-native-code
 ```
 
 The latest release's `notenoughanimations-<version>.hnmod` is installed.
