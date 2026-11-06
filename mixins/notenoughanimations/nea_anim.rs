@@ -88,6 +88,7 @@ pub struct NeaState {
     pub is_player: bool,
     pub partial: f32,
     pub pos: f32,
+    pub y: f32,
     pub age: f32,
     pub swing: f32,
     pub using_item: i32,
@@ -112,6 +113,7 @@ impl NeaState {
         is_player: false,
         partial: 0.0,
         pos: 0.0,
+        y: 0.0,
         age: 0.0,
         swing: 0.0,
         using_item: 0,
@@ -159,6 +161,7 @@ impl NeaState {
             is_player: matches!(m.kind.anim, Anim::Humanoid { zombie_arms: false }),
             partial: s.partial,
             pos: s.pos,
+            y: m.position.y as f32,
             age: s.age,
             swing: s.swing,
             using_item: m.extra.using_item,
@@ -261,8 +264,7 @@ fn apply_ladder(p: &mut Poses, st: &NeaState) {
     }
     // The phase uses the world Y; the model can't see it, so the vanilla
     // climbing flag + the current height from limb motion stand in.
-    let phase = st.swim * 0.0 + st.pos * 2.0;
-    let c = (phase).mcos();
+    let c = (st.y * 2.0).mcos();
     let v = -c * 0.35;
     p.xrot("right_arm", -1.7 + c * 0.35);
     p.xrot("left_arm", -1.7 - c * 0.35);
