@@ -1,14 +1,15 @@
-[mod]
+﻿[mod]
 id = "notenoughanimations"
-version = "0.2.69"
+version = "0.2.70"
 priority = 100
 
 # The commit it was tested on (the pin the launcher asks for).
 [compatibility]
 horizon_revision = "66f3981f522b24c250b21523a70080965b940424"
 
-# The settings are the mod's own page; the animation itself is a source patch
-# in the game (mobs/anim.rs, ArmPose::Eat).
+# The settings are the mod's own page; the animations live in a module
+# inserted into the model-animation file, applied after the vanilla setup
+# (the same places the original mixes into).
 [[module]]
 id = "runtime"
 file = "crates/horizon-client/src/game/client_ambient.rs"
@@ -20,6 +21,12 @@ id = "glue"
 file = "crates/horizon-client/src/game/client_ambient.rs"
 name = "native_nea_glue"
 source = "glue.rs"
+
+[[module]]
+id = "anim"
+file = "crates/horizon-client/src/mobs/anim.rs"
+name = "native_nea_anim"
+source = "nea_anim.rs"
 
 [[injection]]
 id = "list"
@@ -50,4 +57,25 @@ bindings = [
   { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
   { name = "mod_id", ty = "&str", value = "mod_id" },
   { name = "button", ty = "usize", value = "button" },
+]
+
+[[injection]]
+id = "frame"
+hook = "frame"
+hook_version = 1
+kind = "HEAD"
+helper = "nea_frame.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+]
+
+[[injection]]
+id = "setup-return"
+kind = "RETURN"
+target = "horizon_client::mobs::anim::setup"
+helper = "nea_setup_return.rs"
+bindings = [
+  { name = "m", ty = "&crate::mobs::Mob", value = "m" },
+  { name = "s", ty = "&crate::mobs::anim::State", value = "s" },
+  { name = "p", ty = "&mut crate::mobs::anim::Poses", value = "p" },
 ]

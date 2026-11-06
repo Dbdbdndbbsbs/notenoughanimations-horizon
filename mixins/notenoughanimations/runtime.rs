@@ -6,7 +6,7 @@
 
 pub const ID: &str = "notenoughanimations";
 pub const NAME: &str = "Not Enough Animations";
-pub const VERSION: &str = "0.2.69";
+pub const VERSION: &str = "0.2.70";
 pub const DESCRIPTION: &str = "Smoother first-person eating and drinking.";
 
 const KEY_ON: &str = "enabled";
