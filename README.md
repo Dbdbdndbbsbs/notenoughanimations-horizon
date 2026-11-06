@@ -22,7 +22,15 @@ Every animation has its own on/off toggle in `Options → Mods → Not Enough
 Animations`, named in the same languages as the original mod (en, de, fr, pl,
 pt, ru, sv, tr, uk, zh).
 
-The latest release's `notenoughanimations-<version>.hnmod` is installed.
+# Install from GitHub
+
+In the Horizon launcher: open the **Mods** page, choose **Add from GitHub**, paste
+
+```
+https://github.com/Dbdbdndbbsbs/notenoughanimations-horizon
+```
+
+and confirm the trust notice (read the source first - native mods run with your rights). The latest release's `notenoughanimations-<version>.hnmod` is installed.
 
 ## Building from source
 
