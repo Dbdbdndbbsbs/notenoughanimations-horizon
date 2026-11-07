@@ -1,6 +1,6 @@
 [mod]
 id = "notenoughanimations"
-version = "0.2.71"
+version = "0.2.72"
 priority = 100
 
 # The commit it was tested on (the pin the launcher asks for).
