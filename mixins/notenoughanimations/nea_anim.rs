@@ -1,4 +1,4 @@
-﻿// NEA's animation half, inserted into `game/client_ambient.rs`: the settings
+// NEA's animation half, inserted into `game/client_ambient.rs`: the settings
 // and the ported animations. `setup`'s HEAD hook collects the player's state
 // (`NeaState`); the model-visibility HEAD hook (right after the vanilla
 // `humanoid` pose) applies the animations on top.

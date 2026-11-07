@@ -1,4 +1,4 @@
-﻿// Not Enough Animations' own half: the mod's settings, one toggle per
+// Not Enough Animations' own half: the mod's settings, one toggle per
 // animation (the names are the original mod's, translated into every
 // language the original ships). No game types here; `glue.rs` applies it.
 // This file is also the bundle's Cargo library, so its tests run without a
