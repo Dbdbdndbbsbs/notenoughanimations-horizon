@@ -3,9 +3,8 @@
 Original mod by **tr7zw**. Ported to Horizon by **romaeboj**.
 
 A native port of [Not Enough Animations](https://github.com/tr7zw/NotEnoughAnimations)
-to Horizon. It patches the game's own Rust source (`crates/horizon-client`
-`mobs/anim.rs`, `mobs.rs` and `game/perspective.rs`) the same way the original
-mixes into Minecraft's player model.
+to Horizon. It hooks the game's player-model setup through Horizon's native
+mixin API, the same place the original mixes into Minecraft's player model.
 
 ## Ported animations
 

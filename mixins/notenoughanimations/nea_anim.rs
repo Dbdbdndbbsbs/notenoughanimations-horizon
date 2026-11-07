@@ -5,7 +5,8 @@
 use crate::mobs::anim::{Anim, Poses, State};
 use crate::mobs::Mob;
 use horizon_core::geometry::trig::Mth;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::sync::Arc;
 
 /// NEA's settings, switched each frame from the mod's settings.
 #[derive(Clone, Copy, Debug)]
@@ -57,6 +58,14 @@ thread_local! {
     static FIRE_TICKS: Cell<i32> = const { Cell::new(0) };
     /// The current player's animation state, captured by the `setup` HEAD hook.
     static STATE: Cell<NeaState> = const { Cell::new(NeaState::NONE) };
+    /// NEA ItemSwapAnimation: the model age when the hands last traded items.
+    static SWAP_AT: Cell<f32> = const { Cell::new(0.0) };
+    /// NEA BoatAnimation: riding a boat, and each paddle's state and time.
+    static BOAT: Cell<(bool, [bool; 2], [f32; 2])> =
+        const { Cell::new((false, [false; 2], [0.0; 2])) };
+    /// The hands the frame hook saw last, to spot a trade.
+    static HANDS: RefCell<(Option<Arc<str>>, Option<Arc<str>>)> =
+        const { RefCell::new((None, None)) };
 }
 pub fn set_nea(s: NeaSettings) {
     NEA.with(|c| c.set(s));
@@ -66,6 +75,50 @@ pub fn set_powder_snow(on: bool) {
 }
 pub fn set_fire_ticks(ticks: i32) {
     FIRE_TICKS.with(|c| c.set(ticks));
+}
+/// Forget the local player's frame state (left the world).
+pub fn reset_animation_state() {
+    SWAP_AT.with(|c| c.set(0.0));
+    BOAT.with(|c| c.set((false, [false; 2], [0.0; 2])));
+    HANDS.with(|h| *h.borrow_mut() = (None, None));
+}
+/// NEA BoatAnimation: the boat the local player rides, and each paddle's
+/// state and time (`AbstractBoat.rowingTimeLeft/Right`).
+pub fn update_boat(boat: Option<([bool; 2], [f32; 2])>) {
+    BOAT.with(|c| c.set(match boat {
+        Some((paddling, paddles)) => (true, paddling, paddles),
+        None => (false, [false; 2], [0.0; 2]),
+    }));
+}
+/// `AbstractBoat.getRowingTime`: 0 when the oar is not paddling, else the
+/// paddle time interpolated over the render frame.
+fn rowing_time(paddling: bool, paddle: f32, partial: f32) -> f32 {
+    if paddling {
+        paddle - std::f32::consts::FRAC_PI_8 + partial * std::f32::consts::FRAC_PI_8
+    } else {
+        0.0
+    }
+}
+/// NEA ItemSwapAnimation: notice the hands trading their items, and remember
+/// the age it happened at.
+pub fn update_hands(age: f32, main: Option<Arc<str>>, off: Option<Arc<str>>) {
+    HANDS.with(|h| {
+        let (last_main, last_off) = h.borrow().clone();
+        if last_main != last_off
+            && main == last_off
+            && off == last_main
+            && (main.is_some() || off.is_some())
+        {
+            SWAP_AT.with(|c| c.set(age));
+        }
+        *h.borrow_mut() = (main, off);
+    });
+}
+fn swap_at() -> f32 {
+    SWAP_AT.with(|c| c.get())
+}
+fn boat() -> (bool, [bool; 2], [f32; 2]) {
+    BOAT.with(|c| c.get())
 }
 fn nea() -> NeaSettings {
     NEA.with(|c| c.get())
@@ -157,6 +210,7 @@ impl NeaState {
                     | Some("minecraft:brush")
             ) || m.extra.blocking
         };
+        let (boat, paddling, paddles) = boat();
         Self {
             is_player: matches!(m.kind.anim, Anim::Humanoid { zombie_arms: false }),
             partial: s.partial,
@@ -166,11 +220,11 @@ impl NeaState {
             swing: s.swing,
             using_item: m.extra.using_item,
             using_off_hand: m.extra.using_off_hand,
-            swap_at: m.extra.swap_at,
+            swap_at: swap_at(),
             climbing: m.climbing,
-            boat: m.extra.boat,
-            boat_left: m.extra.boat_left_smooth,
-            boat_right: m.extra.boat_right_smooth,
+            boat,
+            boat_left: rowing_time(paddling[0], paddles[0], s.partial),
+            boat_right: rowing_time(paddling[1], paddles[1], s.partial),
             swim: m.extra.swim.amount(s.partial),
             swim_in_water: m.extra.swim.in_water,
             main_arm_left: m.main_arm_left(),
@@ -207,13 +261,16 @@ pub fn apply_all(p: &mut Poses) {
     if !st.is_player {
         return;
     }
-    apply_eat_drink(p, &st);
-    apply_ladder(p, &st);
-    apply_boat(p, &st);
+    // Lowest priority first: a later animation overwrites the arms it owns,
+    // as the original's priority order does (Crawling 350, Burning/Freezing
+    // 400, Ladder 1000, Boat 1500, Eat/Drink 2500, Item Swap 3500).
     apply_crawling(p, &st);
-    apply_item_swap(p, &st);
     apply_burning(p, &st);
     apply_freezing(p, &st);
+    apply_ladder(p, &st);
+    apply_boat(p, &st);
+    apply_eat_drink(p, &st);
+    apply_item_swap(p, &st);
     apply_sleep(p, &st);
 }
 

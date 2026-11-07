@@ -25,8 +25,24 @@ fn notenoughanimations_frame(game: &mut crate::game::Game<'_>) {
     let Some(p) = game.player.as_ref() else {
         anim::set_powder_snow(false);
         anim::set_fire_ticks(0);
+        anim::reset_animation_state();
         return;
     };
     anim::set_powder_snow(p.in_powder_snow);
     anim::set_fire_ticks(p.fire_ticks);
+
+    // NEA ItemSwapAnimation: the hands traded since the last frame.
+    let main = game.inventory[game.selected]
+        .as_ref()
+        .map(|s| s.item.clone());
+    let off = game.offhand.as_ref().map(|s| s.item.clone());
+    let age = game.player_model.as_ref().map_or(0, |m| m.age);
+    anim::update_hands(age as f32, main, off);
+
+    // NEA BoatAnimation: the boat the local player rides, and its paddles.
+    let boat = game
+        .riding
+        .and_then(|id| game.boats.iter().find(|b| b.id == id))
+        .map(|b| (b.paddling, b.paddles));
+    anim::update_boat(boat);
 }
