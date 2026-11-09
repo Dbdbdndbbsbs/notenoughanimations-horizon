@@ -6,8 +6,8 @@ A native port of [Not Enough Animations](https://github.com/tr7zw/NotEnoughAnima
 to Horizon. It hooks the game's player-model setup through Horizon's native
 mixin API, the same place the original mixes into Minecraft's player model.
 
-**0.2.76 is available for the latest Horizon (`fdc87ae`) and fixes the reported
-bugs.**
+**0.2.76 is listed in the Horizon mod registry, built for the latest Horizon
+(`fdc87ae`), and fixes the reported bugs.**
 
 ## Ported animations
 
@@ -40,9 +40,12 @@ pt, ru, sv, tr, uk, zh). Two extra toggles are **In-World Map Rendering** and
 - A crossbow also hides a bow in the other hand while charged or drawn.
 - New toggles: In-World Map Rendering, Bow Animation Fixes.
 
-# Install from GitHub
+# Install
 
-In the Horizon launcher: open the **Mods** page, choose **Add from GitHub**, paste
+In the Horizon launcher: open the **Mods** page, find **Not Enough Animations**,
+choose **Install**, then press **Build** on the same page.
+
+Also available from GitHub: choose **Add from GitHub**, paste
 
 ```
 https://github.com/Dbdbdndbbsbs/notenoughanimations-horizon
