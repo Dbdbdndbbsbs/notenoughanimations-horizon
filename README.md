@@ -6,6 +6,9 @@ A native port of [Not Enough Animations](https://github.com/tr7zw/NotEnoughAnima
 to Horizon. It hooks the game's player-model setup through Horizon's native
 mixin API, the same place the original mixes into Minecraft's player model.
 
+**0.2.76 is available for the latest Horizon (`fdc87ae`) and fixes the reported
+bugs.**
+
 ## Ported animations
 
 - Eat / Drink — the hand lifts to the mouth while eating or drinking.
@@ -16,10 +19,26 @@ mixin API, the same place the original mixes into Minecraft's player model.
 - Freezing — the arms shake in powder snow.
 - Crawling — replacing the swimming pose on land with crawling.
 - No Sleep Movement — the arms lie still in bed.
+- Maps — filled maps render in the hand; the back is paper.
+- Bow fixes — the other hand's item hides while a bow or crossbow is drawn or
+  charged. A shield never hides, and a crossbow hides a bow paired with it.
 
 Every animation has its own on/off toggle in `Options → Mods → Not Enough
 Animations`, named in the same languages as the original mod (en, de, fr, pl,
-pt, ru, sv, tr, uk, zh).
+pt, ru, sv, tr, uk, zh). Two extra toggles are **In-World Map Rendering** and
+**Bow Animation Fixes**.
+
+## What's new in 0.2.76
+
+- Updated to Horizon `fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca`.
+- Filled maps render on one side only, with paper around the content and on the
+  back; no z-fighting.
+- Maps show in the inventory player preview.
+- Map pose no longer follows head pitch, and the right hand matches the left.
+- Empty Map stays a plain vanilla flat item.
+- Offhand items stay hidden for bows and crossbows, except shields.
+- A crossbow also hides a bow in the other hand while charged or drawn.
+- New toggles: In-World Map Rendering, Bow Animation Fixes.
 
 # Install from GitHub
 
@@ -39,7 +58,7 @@ A native bundle builds with the Horizon launcher:
 horizon-launcher native-build . --trust-native-code
 ```
 
-It pins Horizon commit `66f3981f522b24c250b21523a70080965b940424` and
+It pins Horizon commit `fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca` and
 horizon-mixins `5a64af938ec86b00d53d16a408aabc0038fb3e57`.
 
 ## License

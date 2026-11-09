@@ -20,6 +20,8 @@ pub struct NeaSettings {
     pub freezing: bool,
     pub crawling: bool,
     pub sleep: bool,
+    pub maps: bool,
+    pub offhand_hiding: bool,
 }
 impl Default for NeaSettings {
     fn default() -> Self {
@@ -33,6 +35,8 @@ impl Default for NeaSettings {
             freezing: true,
             crawling: true,
             sleep: true,
+            maps: true,
+            offhand_hiding: true,
         }
     }
 }
@@ -48,6 +52,8 @@ thread_local! {
             freezing: true,
             crawling: true,
             sleep: true,
+            maps: true,
+            offhand_hiding: true,
         })
     };
     /// NEA FreezingAnimation: the local player's box touches powder snow
@@ -56,6 +62,21 @@ thread_local! {
     /// NEA BurningAnimation: the local player's remaining fire ticks (the
     /// model's own `fire_ticks` is only synced for remote players).
     static FIRE_TICKS: Cell<i32> = const { Cell::new(0) };
+    /// NEA LadderAnimation: the local player is on a climbable block that is
+    /// a ladder or trapdoor (computed by the frame hook).
+    static CLIMBING: Cell<bool> = const { Cell::new(false) };
+    /// NEA LadderAnimation: the body yaw (radians) that faces the ladder,
+    /// read from the ladder block's `facing` by the frame hook.
+    static LADDER_FACE: Cell<f32> = const { Cell::new(0.0) };
+    /// NEA LadderAnimation: the climbable block has a `facing` (ladder or
+    /// trapdoor), so the body is locked and the head is clamped to it.
+    static LADDER_LOCK: Cell<bool> = const { Cell::new(false) };
+    /// NEA BurningAnimation: the local player is on fire without fire
+    /// resistance (computed by the frame hook).
+    static BURNING: Cell<bool> = const { Cell::new(false) };
+    /// NEA FreezingAnimation: the local player is freezing in powder snow
+    /// (computed by the frame hook).
+    static FREEZING: Cell<bool> = const { Cell::new(false) };
     /// The current player's animation state, captured by the `setup` HEAD hook.
     static STATE: Cell<NeaState> = const { Cell::new(NeaState::NONE) };
     /// NEA ItemSwapAnimation: the model age when the hands last traded items.
@@ -75,6 +96,21 @@ pub fn set_powder_snow(on: bool) {
 }
 pub fn set_fire_ticks(ticks: i32) {
     FIRE_TICKS.with(|c| c.set(ticks));
+}
+pub fn set_climbing(on: bool) {
+    CLIMBING.with(|c| c.set(on));
+}
+pub fn set_ladder_face(yaw: f32) {
+    LADDER_FACE.with(|c| c.set(yaw));
+}
+pub fn set_ladder_lock(on: bool) {
+    LADDER_LOCK.with(|c| c.set(on));
+}
+pub fn set_burning(on: bool) {
+    BURNING.with(|c| c.set(on));
+}
+pub fn set_freezing(on: bool) {
+    FREEZING.with(|c| c.set(on));
 }
 /// Forget the local player's frame state (left the world).
 pub fn reset_animation_state() {
@@ -139,15 +175,20 @@ fn fire_ticks() -> i32 {
 #[derive(Clone, Copy, Debug)]
 pub struct NeaState {
     pub is_player: bool,
+    pub is_local: bool,
     pub partial: f32,
     pub pos: f32,
     pub y: f32,
     pub age: f32,
+    pub pitch: f32,
     pub swing: f32,
     pub using_item: i32,
     pub using_off_hand: bool,
     pub swap_at: f32,
     pub climbing: bool,
+    pub ladder_face: f32,
+    pub ladder_lock: bool,
+    pub head_yaw: f32,
     pub boat: bool,
     pub boat_left: f32,
     pub boat_right: f32,
@@ -157,22 +198,32 @@ pub struct NeaState {
     pub swing_right_arm: Option<bool>,
     pub main_special: bool,
     pub off_special: bool,
+    pub main_map: bool,
+    pub off_map: bool,
+    pub off_empty: bool,
     pub spear: bool,
     pub sleep_pose: bool,
     pub fire_resistance: bool,
+    pub burning: bool,
+    pub freezing: bool,
 }
 impl NeaState {
     pub const NONE: Self = Self {
         is_player: false,
+        is_local: false,
         partial: 0.0,
         pos: 0.0,
         y: 0.0,
         age: 0.0,
+        pitch: 0.0,
         swing: 0.0,
         using_item: 0,
         using_off_hand: false,
         swap_at: 0.0,
         climbing: false,
+        ladder_face: 0.0,
+        ladder_lock: false,
+        head_yaw: 0.0,
         boat: false,
         boat_left: 0.0,
         boat_right: 0.0,
@@ -182,9 +233,14 @@ impl NeaState {
         swing_right_arm: None,
         main_special: false,
         off_special: false,
+        main_map: false,
+        off_map: false,
+        off_empty: true,
         spear: false,
         sleep_pose: false,
         fire_resistance: false,
+        burning: false,
+        freezing: false,
     };
     pub fn capture(m: &Mob, s: &State) -> Self {
         let spear = m
@@ -210,18 +266,56 @@ impl NeaState {
                     | Some("minecraft:brush")
             ) || m.extra.blocking
         };
+        // Only a filled map gets the map-holding pose. An empty map stays a
+        // plain item and is held like one.
+        let is_map =
+            |item: Option<&str>| matches!(item, Some("minecraft:filled_map"));
         let (boat, paddling, paddles) = boat();
+        let is_player = matches!(m.kind.anim, Anim::Humanoid { zombie_arms: false });
+        let is_local = m.id == 0;
+        // The local player's climbing/freezing/burning state comes from the
+        // frame hook, which reads PlayerMotion (synced fields are unavailable
+        // for the local model). Remote players and other mobs use their own
+        // synced fields.
+        let climbing = if is_local && is_player {
+            CLIMBING.with(|c| c.get())
+        } else {
+            m.climbing
+        };
+        let burning = if is_local && is_player {
+            BURNING.with(|c| c.get())
+        } else {
+            m.is_on_fire() && !m.has_effect("minecraft:fire_resistance")
+        };
+        let freezing = if is_local && is_player {
+            FREEZING.with(|c| c.get())
+        } else {
+            false
+        };
         Self {
-            is_player: matches!(m.kind.anim, Anim::Humanoid { zombie_arms: false }),
+            is_player,
+            is_local,
             partial: s.partial,
             pos: s.pos,
             y: m.position.y as f32,
             age: s.age,
+            pitch: s.x_rot,
             swing: s.swing,
             using_item: m.extra.using_item,
             using_off_hand: m.extra.using_off_hand,
             swap_at: swap_at(),
-            climbing: m.climbing,
+            climbing,
+            ladder_face: if climbing {
+                LADDER_FACE.with(|c| c.get())
+            } else {
+                0.0
+            },
+            // Remote players have no local ladder block; keep their vanilla
+            // body and head instead of using the local player's lock.
+            ladder_lock: climbing && is_local && is_player && LADDER_LOCK.with(|c| c.get()),
+            // `State.y_rot` is the head relative to the (locked) body, so it
+            // is already the sideways look that the ladder animation clamps.
+            head_yaw: s.y_rot.to_radians(),
             boat,
             boat_left: rowing_time(paddling[0], paddles[0], s.partial),
             boat_right: rowing_time(paddling[1], paddles[1], s.partial),
@@ -231,9 +325,14 @@ impl NeaState {
             swing_right_arm: m.extra.swing_right_arm,
             main_special: special(m.extra.main_hand.as_deref()),
             off_special: special(m.extra.off_hand.as_deref()),
+            main_map: is_map(m.extra.main_hand.as_deref()),
+            off_map: is_map(m.extra.off_hand.as_deref()),
+            off_empty: m.extra.off_hand.is_none(),
             spear,
             sleep_pose: crate::mobs::villager::sleep_pose(m).is_some(),
             fire_resistance: m.has_effect("minecraft:fire_resistance"),
+            burning,
+            freezing,
         }
     }
 }
@@ -262,8 +361,10 @@ pub fn apply_all(p: &mut Poses) {
         return;
     }
     // Lowest priority first: a later animation overwrites the arms it owns,
-    // as the original's priority order does (Crawling 350, Burning/Freezing
-    // 400, Ladder 1000, Boat 1500, Eat/Drink 2500, Item Swap 3500).
+    // as the original's priority order does (Map 300, Crawling 350,
+    // Burning/Freezing 400, Ladder 1000, Boat 1500, Eat/Drink 2500,
+    // Item Swap 3500).
+    apply_map_holding(p, &st);
     apply_crawling(p, &st);
     apply_burning(p, &st);
     apply_freezing(p, &st);
@@ -274,8 +375,57 @@ pub fn apply_all(p: &mut Poses) {
     apply_sleep(p, &st);
 }
 
+/// NEA MapHoldingAnimation (priority 300): the arms hold the map in front,
+/// both hands when the off hand is empty, otherwise only the hand with the
+/// map. The original's pitch-driven formulas.
+fn apply_map_holding(p: &mut Poses, st: &NeaState) {
+    if !nea_on(nea().maps) {
+        return;
+    }
+    let both = st.main_map && st.off_empty;
+    let both_maps = st.main_map && st.off_map;
+    let main_only = st.main_map && !st.off_empty && !st.off_map;
+    let off_only = !st.main_map && st.off_map;
+    if !(both || both_maps || main_only || off_only) {
+        return;
+    }
+    // `EntityUtil.getXRot` is the head pitch in degrees.
+    let t = (90.0 - st.pitch) / 180.0;
+    let lerp = |a: f32, from: f32, to: f32| from + a * (to - from);
+    // The original's pitch-driven formulas swing the arms (and the maps in
+    // them) as the head tilts, so two maps converge and diverge when looking
+    // up and down. Pin the pose to level gaze (t = 0.5): the map stays fixed
+    // in the hands no matter the head angle.
+    let (x, y) = if both {
+        (-lerp(0.5, 0.7, 0.9), lerp(0.5, -0.3, -0.2))
+    } else {
+        (-lerp(0.5, 0.5, 1.5), 0.0)
+    };
+    let arm = |p: &mut Poses, right: bool| {
+        let name = if right { "right_arm" } else { "left_arm" };
+        p.xrot(name, x);
+        p.yrot(name, if right { y } else { -y });
+        p.zrot(name, if right { 0.3 } else { -0.3 });
+    };
+    if both {
+        arm(p, true);
+        arm(p, false);
+    } else if both_maps {
+        // A map in each hand: the original only poses the main arm, leaving
+        // the off-hand map floating. Pose both arms with the one-handed
+        // formula so each hand holds its own map.
+        arm(p, true);
+        arm(p, false);
+    } else if main_only {
+        arm(p, !st.main_arm_left);
+    } else {
+        // The off arm is the opposite of the main arm.
+        arm(p, st.main_arm_left);
+    }
+}
+
 /// NEA EatDrinkAnimation (priority 2500): the using arm lifts to the mouth
-/// and chews.
+/// and chews. The classic NEA port formula.
 fn apply_eat_drink(p: &mut Poses, st: &NeaState) {
     if !nea_on(nea().eat_drink) || st.using_item <= 0 {
         return;
@@ -313,28 +463,42 @@ fn apply_eat_drink(p: &mut Poses, st: &NeaState) {
     );
 }
 
-/// NEA LadderAnimation (priority 1000): fixed arm/leg cos swings, hands up at
-/// -1.7, amplitude 0.35, phase = world Y * 2.
+/// NEA LadderAnimation (priority 1000): the original tr7zw animation. Arms
+/// hang at -1.7, legs bend at -1.0 so the feet rest on the rungs; all parts
+/// swing with `cos(worldY * 2) * 0.35`, left limbs mirror yaw/z. The frame
+/// hook locks the body to the ladder's `facing`; the head turns with the
+/// camera, clamped to ±90° of the body.
 fn apply_ladder(p: &mut Poses, st: &NeaState) {
     if !nea_on(nea().ladder) || !st.climbing {
         return;
     }
-    // The phase uses the world Y; the model can't see it, so the vanilla
-    // climbing flag + the current height from limb motion stand in.
-    let c = (st.y * 2.0).mcos();
-    let v = -c * 0.35;
-    p.xrot("right_arm", -1.7 + c * 0.35);
-    p.xrot("left_arm", -1.7 - c * 0.35);
-    p.yrot("right_arm", 0.0);
-    p.yrot("left_arm", 0.0);
-    p.zrot("right_arm", 0.0);
-    p.zrot("left_arm", 0.0);
-    p.xrot("right_leg", v);
-    p.xrot("left_leg", -v);
-    p.yrot("right_leg", 0.0);
-    p.yrot("left_leg", 0.0);
-    p.zrot("right_leg", 0.0);
-    p.zrot("left_leg", 0.0);
+    let rotation = -(st.y * 2.0).cos() * 0.35;
+    // Right arm.
+    p.xrot("right_arm", -1.7 - rotation);
+    p.yrot("right_arm", -0.2);
+    p.zrot("right_arm", 0.3);
+    // Left arm (mirrored yaw/z).
+    p.xrot("left_arm", -1.7 + rotation);
+    p.yrot("left_arm", 0.2);
+    p.zrot("left_arm", -0.3);
+    // Right leg: bent, feet resting on the rungs.
+    p.xrot("right_leg", -1.0 - rotation);
+    p.yrot("right_leg", -0.2);
+    p.zrot("right_leg", 0.3);
+    // Left leg (mirrored yaw/z).
+    p.xrot("left_leg", -1.0 + rotation);
+    p.yrot("left_leg", 0.2);
+    p.zrot("left_leg", -0.3);
+    // The body's world yaw is locked to the ladder by the frame hook. The
+    // head follows the camera relative to that body, clamped to +-90 degrees
+    // so a backwards climb turns the head sideways instead of spinning it.
+    if st.ladder_lock {
+        p.yrot(
+            "head",
+            st.head_yaw
+                .clamp(-std::f32::consts::FRAC_PI_2, std::f32::consts::FRAC_PI_2),
+        );
+    }
 }
 
 /// NEA BoatAnimation (priority 1000): each oar sweeps with its own rowing
@@ -442,25 +606,23 @@ fn apply_item_swap(p: &mut Poses, st: &NeaState) {
     if !nea_on(nea().item_swap) || st.swap_at <= 0.0 {
         return;
     }
-    let elapsed = (st.age - st.swap_at) / 10.0;
-    if (0.0..=1.0).contains(&elapsed) {
-        let roll = -1.0 + elapsed;
-        p.xrot("right_arm", -0.5);
-        p.yrot("right_arm", 0.2);
-        p.zrot("right_arm", roll);
-        p.xrot("left_arm", -0.5);
-        p.yrot("left_arm", -0.2);
-        p.zrot("left_arm", -roll);
+    let elapsed = st.age - st.swap_at;
+    if !(0.0..=10.0).contains(&elapsed) {
+        return;
     }
+    let roll = -1.0 + elapsed / 10.0;
+    p.xrot("right_arm", -0.5);
+    p.yrot("right_arm", 0.2);
+    p.zrot("right_arm", roll);
+    p.xrot("left_arm", -0.5);
+    p.yrot("left_arm", -0.2);
+    p.zrot("left_arm", -roll);
 }
 
 /// NEA BurningAnimation (priority 400): the head wobbles and the free arms
 /// flail.
 fn apply_burning(p: &mut Poses, st: &NeaState) {
-    if !nea_on(nea().burning) || st.fire_resistance {
-        return;
-    }
-    if fire_ticks() <= 0 {
+    if !nea_on(nea().burning) || !st.burning {
         return;
     }
     let t = st.age;
@@ -480,7 +642,7 @@ fn apply_burning(p: &mut Poses, st: &NeaState) {
 /// NEA FreezingAnimation (priority 400): in powder snow without Fire
 /// Resistance, the arms shake with a smooth random-ish roll per frame.
 fn apply_freezing(p: &mut Poses, st: &NeaState) {
-    if !nea_on(nea().freezing) || !in_powder_snow() || st.fire_resistance {
+    if !nea_on(nea().freezing) || !st.freezing {
         return;
     }
     let now = std::time::SystemTime::now()
@@ -517,7 +679,8 @@ fn apply_sleep(p: &mut Poses, st: &NeaState) {
 }
 
 /// Apply `right`/`left` to the free arms; an arm busy with higher-priority
-/// work keeps its pose.
+/// work keeps its pose. The swap flag is only busy while the 10-tick item
+/// swap timer is still running; once it expires the arm is free again.
 fn nea_flail(
     p: &mut Poses,
     st: &NeaState,
@@ -534,11 +697,12 @@ fn nea_flail(
     };
     let using_left = st.using_item > 0 && (st.using_off_hand != st.main_arm_left);
     let using_right = st.using_item > 0 && !using_left;
+    let swap_busy = st.swap_at > 0.0 && st.age - st.swap_at < 10.0;
     let busy = |left: bool| {
         swinging(left)
             || (left && using_left)
             || (!left && using_right)
-            || st.swap_at > 0.0
+            || swap_busy
             || st.climbing
             || st.boat
             || st.spear

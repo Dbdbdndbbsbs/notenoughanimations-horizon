@@ -15,6 +15,30 @@ thread_local! {
     static STATE: RefCell<Option<State>> = const { RefCell::new(None) };
 }
 
+// While the main hand holds a bow or crossbow, the off hand's item hides
+// (original NEA OffhandHidingAnimation); `hide_offhand_nea.rs` suppresses its
+// vanilla render for the frame. A shield never hides.
+thread_local! {
+    static HIDE_OFFHAND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static HIDE_MAIN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+pub(crate) fn set_hide_offhand(v: bool) {
+    HIDE_OFFHAND.with(|c| c.set(v));
+}
+
+pub(crate) fn hide_offhand() -> bool {
+    HIDE_OFFHAND.with(|c| c.get())
+}
+
+pub(crate) fn set_hide_main(v: bool) {
+    HIDE_MAIN.with(|c| c.set(v));
+}
+
+pub(crate) fn hide_main() -> bool {
+    HIDE_MAIN.with(|c| c.get())
+}
+
 fn with<R>(f: impl FnOnce(&mut State) -> R) -> R {
     STATE.with(|cell| {
         f(cell

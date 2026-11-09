@@ -1,14 +1,11 @@
 [mod]
 id = "notenoughanimations"
-version = "0.2.73"
+version = "0.2.76"
 priority = 100
 
-# The commit it was tested on (the pin the launcher asks for).
 [compatibility]
-horizon_revision = "66f3981f522b24c250b21523a70080965b940424"
+horizon_revision = "fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca"
 
-# The settings are the mod's own page; the animations live in a module
-# inserted into the client's ambient file, applied after the vanilla setup.
 [[module]]
 id = "runtime"
 file = "crates/horizon-client/src/game/client_ambient.rs"
@@ -26,6 +23,25 @@ id = "anim"
 file = "crates/horizon-client/src/mobs/anim.rs"
 name = "native_nea_anim"
 source = "nea_anim.rs"
+visibility = "pub"
+
+[[module]]
+id = "atlas_slots_nea"
+file = "crates/horizon-client/src/game/atlas_slots.rs"
+name = "native_nea_atlas_slots"
+source = "atlas_slots_nea.rs"
+
+[[module]]
+id = "maps_nea"
+file = "crates/horizon-client/src/game.rs"
+name = "native_nea_maps"
+source = "maps_nea.rs"
+
+[[module]]
+id = "render_nea"
+file = "crates/horizon-client/src/mobs/render.rs"
+name = "native_nea_render"
+source = "render_nea.rs"
 visibility = "pub"
 
 [[injection]]
@@ -86,4 +102,62 @@ target = "horizon_client::mobs::anim::player_model_visibility"
 helper = "nea_visibility_head.rs"
 bindings = [
   { name = "p", ty = "&mut crate::mobs::anim::Poses", value = "p" },
+]
+
+[[injection]]
+id = "warm"
+kind = "HEAD"
+target = "horizon_client::game::Game<'_>::entity_geometry"
+helper = "warm_nea.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+]
+
+[[injection]]
+id = "hero-map"
+kind = "HEAD"
+target = "horizon_client::game::mob_blocks::Game<'_>::held_item_geometry"
+helper = "held_map_nea.rs"
+bindings = [
+  { name = "game", ty = "&crate::game::Game<'_>", value = "&*self" },
+  { name = "mob", ty = "&crate::mobs::Mob", value = "mob" },
+  { name = "camera", ty = "glam::DVec3", value = "camera" },
+  { name = "alpha", ty = "f64", value = "alpha" },
+  { name = "light", ty = "u32", value = "light" },
+  { name = "out", ty = "&mut Vec<crate::mesher::Vertex>", value = "out" },
+]
+
+[[injection]]
+id = "update-offhand"
+kind = "HEAD"
+target = "horizon_client::game::mob_blocks::Game<'_>::held_item_geometry"
+helper = "offhand_hiding_nea.rs"
+bindings = [
+  { name = "game", ty = "&crate::game::Game<'_>", value = "&*self" },
+  { name = "mob", ty = "&crate::mobs::Mob", value = "mob" },
+]
+
+[[injection]]
+id = "hide-map"
+kind = "HEAD"
+cancellable = true
+target = "horizon_client::game::item_draw::Game<'_>::resolve_item_in_hand"
+helper = "map_hide_nea.rs"
+bindings = [
+  { name = "game", ty = "&crate::game::Game<'_>", value = "&*self" },
+  { name = "stack", ty = "&crate::items::ItemStack", value = "stack" },
+  { name = "display", ty = "horizon_assets::item_model::DisplayContext", value = "display" },
+  { name = "owner", ty = "Option<&horizon_assets::item_model::OwnerState>", value = "owner" },
+]
+
+[[injection]]
+id = "hide-offhand"
+kind = "HEAD"
+cancellable = true
+target = "horizon_client::game::item_draw::Game<'_>::resolve_item_in_hand"
+helper = "hide_offhand_nea.rs"
+bindings = [
+  { name = "stack", ty = "&crate::items::ItemStack", value = "stack" },
+  { name = "display", ty = "horizon_assets::item_model::DisplayContext", value = "display" },
+  { name = "owner", ty = "Option<&horizon_assets::item_model::OwnerState>", value = "owner" },
 ]

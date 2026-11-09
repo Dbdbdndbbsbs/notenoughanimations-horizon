@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "id": "notenoughanimations",
-  "version": "0.2.73",
+  "version": "0.2.76",
   "game": "26.3",
-  "horizon": "66f3981f522b24c250b21523a70080965b940424",
+  "horizon": "fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca",
   "mixins": "5a64af938ec86b00d53d16a408aabc0038fb3e57"
 }
 
